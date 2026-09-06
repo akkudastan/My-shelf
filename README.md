@@ -1,3 +1,5 @@
+<img width="828" height="1792" alt="IMG_2254" src="https://github.com/user-attachments/assets/393b134d-6ed7-413b-99f2-1059c4e73417" />
+
 # ✈️ Фиксация Посадки / Boarding Logger
 
 [RU] | [KZ] | [EN]
