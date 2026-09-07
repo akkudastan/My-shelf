@@ -79,7 +79,7 @@
     
     <label id="txt-lblFlight">Номер рейса и тип стоянки:</label>
     <div class="flight-row">
-        <input type="text" id="flightNum" value="KC622" style="margin-top:0;">
+        <input type="text" id="flightNum" value="KC622" style="margin-top:0;" oninput="saveData()">
         <div class="type-toggle" id="typeToggleBox">
             <button class="btn-type active" id="btn-gate" onclick="setBoardingType('gate')">Гейт</button>
             <button class="btn-type" id="btn-remote" onclick="setBoardingType('remote')">Дальняя стоянка</button>
@@ -130,19 +130,19 @@
         <div class="row">
             <button class="btn-status" id="btn-allAboard" onclick="recordTime('allAboard')">Все на борту</button>
             <span class="time-display" id="time-allAboard">--:--</span>
-            <input type="text" id="comment-allAboard" placeholder="Комм.">
+            <input type="text" id="comment-allAboard" placeholder="Комм." oninput="saveData()">
             <button class="btn-copy" id="copy-btn-allAboard" onclick="copyLine('allAboard', this)">📋</button>
         </div>
 
         <div class="row">
             <button class="btn-status" id="btn-closed" onclick="recordTime('closed')">Закрыли</button>
             <span class="time-display" id="time-closed">--:--</span>
-            <input type="text" id="comment-closed" placeholder="Комм.">
+            <input type="text" id="comment-closed" placeholder="Комм." oninput="saveData()">
             <button class="btn-copy" id="copy-btn-closed" onclick="copyLine('closed', this)">📋</button>
         </div>
 
         <label id="txt-lblChanges">Изменения:</label>
-        <input type="text" id="changes" placeholder="-1 Asanov A.">
+        <input type="text" id="changes" placeholder="-1 Asanov A." oninput="saveData()">
     </div>
 
     <!-- Блок статусов ДЛЯ ПРИЛЕТА -->
@@ -150,7 +150,7 @@
         <div class="row">
             <button class="btn-status" id="btn-opened" onclick="recordTime('opened')">Открыли</button>
             <span class="time-display" id="time-opened">--:--</span>
-            <input type="text" id="comment-opened" placeholder="Комм.">
+            <input type="text" id="comment-opened" placeholder="Комм." oninput="saveData()">
             <button class="btn-copy" id="copy-btn-opened" onclick="copyLine('opened', this)">📋</button>
         </div>
 
@@ -180,18 +180,18 @@
         <div class="row">
             <button class="btn-status" id="btn-allOut" onclick="recordTime('allOut')">Все вышли</button>
             <span class="time-display" id="time-allOut">--:--</span>
-            <input type="text" id="comment-allOut" placeholder="Комм.">
+            <input type="text" id="comment-allOut" placeholder="Комм." oninput="saveData()">
             <button class="btn-copy" id="copy-btn-allOut" onclick="copyLine('allOut', this)">📋</button>
         </div>
 
         <label id="txt-lblPaxCount">Количество пассажиров:</label>
-        <input type="number" id="paxCount" placeholder="0">
+        <input type="number" id="paxCount" placeholder="0" oninput="saveData()">
     </div>
 </div>
 
 <div class="card">
     <button class="btn-report" id="txt-btnReport" onclick="generateReport()">Сформировать отчет</button>
-    <textarea id="reportOutput" placeholder="Здесь будет итоговый отчет..."></textarea>
+    <textarea id="reportOutput" placeholder="Здесь будет итоговый отчет..." oninput="saveData()"></textarea>
     <button class="btn-copy" id="copy-report-btn" style="width: 100%; margin-top: 8px;" onclick="copyReport(this)">📋 <span id="txt-btnCopyReport">Копировать весь отчет</span></button>
 </div>
 
@@ -323,6 +323,116 @@
         }
     };
 
+    function saveData() {
+        const state = {
+            currentLang,
+            currentMode,
+            boardingType,
+            actionHistory,
+            redoHistory,
+            markCounterDep,
+            markCounterArr,
+            eventTimestamps,
+            flightNum: document.getElementById('flightNum').value,
+            changes: document.getElementById('changes').value,
+            paxCount: document.getElementById('paxCount').value,
+            reportOutput: document.getElementById('reportOutput').value,
+            times: {},
+            comments: {}
+        };
+
+        const standardIds = [
+            'preboarding', 'full', 'busDep1', 'busDep2', 'busDep3', 'allAboard', 'closed',
+            'opened', 'busArr1', 'busArr2', 'busArr3', 'allOut'
+        ];
+
+        standardIds.forEach(id => {
+            const timeElem = document.getElementById(`time-${id}`);
+            if (timeElem) state.times[id] = timeElem.innerText;
+            const commElem = document.getElementById(`comment-${id}`);
+            if (commElem) state.comments[id] = commElem.value;
+        });
+
+        for (let i = 1; i <= markCounterDep; i++) {
+            const id = `markDep_${i}`;
+            const timeElem = document.getElementById(`time-${id}`);
+            if (timeElem) state.times[id] = timeElem.innerText;
+            const commElem = document.getElementById(`comment-${id}`);
+            if (commElem) state.comments[id] = commElem.value;
+        }
+
+        for (let i = 1; i <= markCounterArr; i++) {
+            const id = `markArr_${i}`;
+            const timeElem = document.getElementById(`time-${id}`);
+            if (timeElem) state.times[id] = timeElem.innerText;
+            const commElem = document.getElementById(`comment-${id}`);
+            if (commElem) state.comments[id] = commElem.value;
+        }
+
+        localStorage.setItem('flightLoggerState', JSON.stringify(state));
+    }
+
+    function loadData() {
+        const saved = localStorage.getItem('flightLoggerState');
+        if (!saved) {
+            addMarkRow('departure');
+            addMarkRow('arrival');
+            return;
+        }
+
+        try {
+            const state = JSON.parse(saved);
+            currentLang = state.currentLang || 'ru';
+            currentMode = state.currentMode || 'departure';
+            boardingType = state.boardingType || 'gate';
+            actionHistory = state.actionHistory || [];
+            redoHistory = state.redoHistory || [];
+            eventTimestamps = state.eventTimestamps || {};
+
+            document.getElementById('flightNum').value = state.flightNum || 'KC622';
+            document.getElementById('changes').value = state.changes || '';
+            document.getElementById('paxCount').value = state.paxCount || '';
+            document.getElementById('reportOutput').value = state.reportOutput || '';
+
+            document.getElementById('markContainerDeparture').innerHTML = '';
+            document.getElementById('markContainerArrival').innerHTML = '';
+            markCounterDep = 0;
+            markCounterArr = 0;
+
+            const targetMarkDep = state.markCounterDep || 1;
+            for (let i = 0; i < targetMarkDep; i++) {
+                addMarkRow('departure', false);
+            }
+
+            const targetMarkArr = state.markCounterArr || 1;
+            for (let i = 0; i < targetMarkArr; i++) {
+                addMarkRow('arrival', false);
+            }
+
+            if (state.times) {
+                Object.keys(state.times).forEach(id => {
+                    const val = state.times[id];
+                    const timeElem = document.getElementById(`time-${id}`);
+                    const btnElem = document.getElementById(`btn-${id}`);
+                    if (timeElem) timeElem.innerText = val;
+                    if (btnElem && val !== '--:--') btnElem.classList.add('active');
+                });
+            }
+
+            if (state.comments) {
+                Object.keys(state.comments).forEach(id => {
+                    const commElem = document.getElementById(`comment-${id}`);
+                    if (commElem) commElem.value = state.comments[id];
+                });
+            }
+
+            setBoardingType(boardingType);
+            setMode(currentMode);
+        } catch (e) {
+            console.error("Ошибка загрузки данных из localStorage:", e);
+        }
+    }
+
     function setMode(mode) {
         currentMode = mode;
         document.getElementById('mode-departure').classList.toggle('active', mode === 'departure');
@@ -332,6 +442,7 @@
         document.getElementById('section-arrival').style.display = (mode === 'arrival') ? 'block' : 'none';
 
         setLanguage(currentLang);
+        saveData();
     }
 
     function setLanguage(lang) {
@@ -388,6 +499,7 @@
         if (document.getElementById('reportOutput').value.trim() !== '') {
             generateReport();
         }
+        saveData();
     }
 
     function updateClock() {
@@ -406,7 +518,7 @@
         return now.toTimeString().substring(0, 5);
     }
 
-    function addMarkRow(type) {
+    function addMarkRow(type, shouldSave = true) {
         const isDep = (type === 'departure');
         if (isDep) markCounterDep++; else markCounterArr++;
         
@@ -423,14 +535,13 @@
         row.innerHTML = `
             <button class="btn-status" id="btn-${id}" onclick="recordTime('${id}')">${t.mark}</button>
             <span class="time-display" id="time-${id}">--:--</span>
-            <input type="text" id="comment-${id}" placeholder="${t.phComm}">
+            <input type="text" id="comment-${id}" placeholder="${t.phComm}" oninput="saveData()">
             <button class="btn-copy" id="copy-btn-${id}" onclick="copyLine('${id}', this)">📋</button>
         `;
         container.appendChild(row);
-    }
 
-    addMarkRow('departure');
-    addMarkRow('arrival');
+        if (shouldSave) saveData();
+    }
 
     function setBoardingType(type) {
         boardingType = type;
@@ -452,6 +563,7 @@
             busDep.style.display = 'none';
             busArr.style.display = 'none';
         }
+        saveData();
     }
 
     function recordTime(id) {
@@ -483,6 +595,8 @@
             const currentNum = parseInt(id.split('_')[1]);
             if (currentNum === markCounterArr) addMarkRow('arrival');
         }
+
+        saveData();
     }
 
     function undoLast() {
@@ -519,6 +633,8 @@
                 markCounterArr--;
             }
         }
+
+        saveData();
     }
 
     function redoLast() {
@@ -547,12 +663,16 @@
             const currentNum = parseInt(action.id.split('_')[1]);
             if (currentNum === markCounterArr) addMarkRow('arrival');
         }
+
+        saveData();
     }
 
     function clearAll() {
         const t = translations[currentLang];
         if (!confirm(t.confirmClear)) return;
         
+        localStorage.removeItem('flightLoggerState');
+
         const ids = [
             'preboarding', 'full', 'busDep1', 'busDep2', 'busDep3', 'allAboard', 'closed',
             'opened', 'busArr1', 'busArr2', 'busArr3', 'allOut'
@@ -570,8 +690,8 @@
         document.getElementById('markContainerArrival').innerHTML = '';
         markCounterDep = 0;
         markCounterArr = 0;
-        addMarkRow('departure');
-        addMarkRow('arrival');
+        addMarkRow('departure', false);
+        addMarkRow('arrival', false);
 
         document.getElementById('changes').value = '';
         document.getElementById('paxCount').value = '';
@@ -579,6 +699,8 @@
         actionHistory = [];
         redoHistory = [];
         eventTimestamps = {};
+
+        saveData();
     }
 
     function getLabelText(id) {
@@ -704,6 +826,7 @@
         }
 
         document.getElementById('reportOutput').value = report.trim();
+        saveData();
     }
 
     function copyReport(btn) {
@@ -723,6 +846,9 @@
             btn.classList.remove('copied');
         }, 1200);
     }
+
+    // Автоматическая загрузка данных при старте
+    window.addEventListener('DOMContentLoaded', loadData);
 </script>
 
 </body>
