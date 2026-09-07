@@ -44,7 +44,7 @@
         .btn-copy { background: #ff9800; color: white; border: none; height: 38px; border-radius: 6px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
         .btn-copy.copied { background: #4CAF50; }
         
-        textarea { width: 100%; height: 120px; margin-top: 10px; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 13px; }
+        textarea { width: 100%; height: 140px; margin-top: 10px; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 13px; }
         .btn-report { background: #2196F3; color: white; border: none; padding: 12px; width: 100%; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; }
         
         .bus-section { display: none; border-top: 1px dashed #ccc; padding-top: 10px; margin-top: 10px; }
@@ -204,6 +204,8 @@
     let markCounterDep = 0;
     let markCounterArr = 0;
 
+    let eventTimestamps = {};
+
     const translations = {
         ru: {
             titleDep: "Посадка",
@@ -241,9 +243,7 @@
             opened: "Открыли",
             allOut: "Все вышли",
             paxText: "Пассажиров",
-            changes: "Изменения",
-            noChanges: "б/и",
-            reportGenerated: "Отчет сформирован"
+            noChanges: "б/и"
         },
         kz: {
             titleDep: "Ұшаққа отырғызу",
@@ -281,9 +281,7 @@
             opened: "Ашылды",
             allOut: "Бәрі шықты",
             paxText: "Жолаушылар",
-            changes: "Өзгерістер",
-            noChanges: "ө/жоқ",
-            reportGenerated: "Есеп қалыптастырылды"
+            noChanges: "ө/жоқ"
         },
         en: {
             titleDep: "Boarding",
@@ -321,9 +319,7 @@
             opened: "Opened",
             allOut: "All out",
             paxText: "Passengers",
-            changes: "Changes",
-            noChanges: "n/c",
-            reportGenerated: "Report Generated"
+            noChanges: "n/c"
         }
     };
 
@@ -462,13 +458,22 @@
         const display = document.getElementById(`time-${id}`);
         const btn = document.getElementById(`btn-${id}`);
         const timeVal = getFormattedTime();
+        const nowTs = Date.now();
 
         const isNewAction = (display.innerText === '--:--');
 
-        actionHistory.push({ id: id, oldTime: display.innerText, newTime: timeVal, isFirstRecord: isNewAction });
+        actionHistory.push({ 
+            id: id, 
+            oldTime: display.innerText, 
+            newTime: timeVal, 
+            oldTimestamp: eventTimestamps[id] || null,
+            newTimestamp: nowTs,
+            isFirstRecord: isNewAction 
+        });
         redoHistory = [];
 
         display.innerText = timeVal;
+        eventTimestamps[id] = nowTs;
         btn.classList.add('active');
 
         if (id.startsWith('markDep_') && isNewAction) {
@@ -489,6 +494,12 @@
         const btn = document.getElementById(`btn-${lastAction.id}`);
         
         if (display) display.innerText = lastAction.oldTime;
+        if (lastAction.oldTimestamp) {
+            eventTimestamps[lastAction.id] = lastAction.oldTimestamp;
+        } else {
+            delete eventTimestamps[lastAction.id];
+        }
+
         if (btn && lastAction.oldTime === '--:--') {
             btn.classList.remove('active');
         }
@@ -526,6 +537,7 @@
 
         const btn = document.getElementById(`btn-${action.id}`);
         if (display) display.innerText = action.newTime;
+        eventTimestamps[action.id] = action.newTimestamp;
         if (btn) btn.classList.add('active');
 
         if (action.id.startsWith('markDep_') && action.isFirstRecord) {
@@ -566,13 +578,14 @@
         document.getElementById('reportOutput').value = '';
         actionHistory = [];
         redoHistory = [];
+        eventTimestamps = {};
     }
 
     function getLabelText(id) {
         const t = translations[currentLang];
         if (id === 'preboarding') return (boardingType === 'remote') ? t.toBus : t.preboarding;
         if (id === 'allAboard') return t.allAboard;
-        if (id.startsWith('markDep_') || id.startsWith('markArr_')) return t.mark;
+        if (id.startsWith('markDep_') || id.startsWith('markArr_')) return '';
         return t[id] || '';
     }
 
@@ -580,12 +593,13 @@
         const time = document.getElementById(`time-${id}`).innerText;
         const flight = document.getElementById('flightNum').value;
         const commInput = document.getElementById(`comment-${id}`);
-        let comment = commInput ? commInput.value : '';
+        let comment = commInput ? commInput.value.trim() : '';
         
         if (time === '--:--') return;
 
-        let text = `${flight} ${getLabelText(id)} ${time}`;
-        if (comment) text += ` [${comment}]`;
+        const label = getLabelText(id);
+        let text = label ? `${flight} ${label} ${time}` : `${flight} ${time}`;
+        if (comment) text += ` ${comment}`;
 
         navigator.clipboard.writeText(text);
 
@@ -601,84 +615,87 @@
     function generateReport() {
         const flight = document.getElementById('flightNum').value;
         const t = translations[currentLang];
-        let report = `${t.reportGenerated} (${flight} - ${currentMode === 'departure' ? t.modeDep : t.modeArr})\n`;
+        let report = `${flight} - ${currentMode === 'departure' ? t.modeDep : t.modeArr}\n`;
+
+        let activeEvents = [];
 
         if (currentMode === 'departure') {
-            const baseOrder = boardingType === 'remote' 
-                ? ['preboarding', 'full', 'busDep1', 'busDep2', 'busDep3']
-                : ['preboarding', 'full'];
+            const availableIds = ['preboarding', 'full', 'allAboard', 'closed'];
+            if (boardingType === 'remote') {
+                availableIds.push('busDep1', 'busDep2', 'busDep3');
+            }
+            for (let i = 1; i <= markCounterDep; i++) {
+                availableIds.push(`markDep_${i}`);
+            }
 
-            baseOrder.forEach(id => {
-                const time = document.getElementById(`time-${id}`).innerText;
-                if (time !== '--:--') {
+            availableIds.forEach(id => {
+                const timeElem = document.getElementById(`time-${id}`);
+                if (timeElem && timeElem.innerText !== '--:--') {
                     const commInput = document.getElementById(`comment-${id}`);
-                    let commText = commInput ? commInput.value : '';
-                    report += `${getLabelText(id)} ${time} ${commText ? '[' + commText + ']' : ''}\n`;
+                    const comment = commInput ? commInput.value.trim() : '';
+                    activeEvents.push({
+                        id: id,
+                        time: timeElem.innerText,
+                        timestamp: eventTimestamps[id] || 0,
+                        comment: comment,
+                        isCustomMark: id.startsWith('markDep_')
+                    });
                 }
             });
 
-            for (let i = 1; i <= markCounterDep; i++) {
-                const id = `markDep_${i}`;
-                const timeElem = document.getElementById(`time-${id}`);
-                if (timeElem && timeElem.innerText !== '--:--') {
-                    const commInput = document.getElementById(`comment-${id}`);
-                    let commText = commInput ? commInput.value : '';
-                    report += `${t.mark} ${timeElem.innerText} ${commText ? '[' + commText + ']' : ''}\n`;
+            // Сортировка по времени замера (timestamp)
+            activeEvents.sort((a, b) => a.timestamp - b.timestamp);
+
+            activeEvents.forEach(item => {
+                const commText = item.comment ? ` ${item.comment}` : '';
+                if (item.isCustomMark) {
+                    report += `${item.time}${commText}\n`;
+                } else {
+                    const label = getLabelText(item.id);
+                    report += `${label} ${item.time}${commText}\n`;
                 }
-            }
-
-            const allAboardTime = document.getElementById('time-allAboard').innerText;
-            if (allAboardTime !== '--:--') {
-                const commInput = document.getElementById('comment-allAboard');
-                let commText = commInput ? commInput.value : '';
-                report += `${t.allAboard} ${allAboardTime} ${commText ? '[' + commText + ']' : ''}\n`;
-            }
-
-            const closedTime = document.getElementById('time-closed').innerText;
-            if (closedTime !== '--:--') {
-                const commInput = document.getElementById('comment-closed');
-                let commText = commInput ? commInput.value : '';
-                report += `${t.closed} ${closedTime} ${commText ? '[' + commText + ']' : ''}\n`;
-            }
+            });
 
             const changes = document.getElementById('changes').value.trim();
-            report += `${t.changes} [${changes ? changes : t.noChanges}]\n`;
+            report += `${changes ? changes : t.noChanges}\n`;
+
         } else {
             // Режим ПРИЛЕТ
-            const openedTime = document.getElementById('time-opened').innerText;
-            if (openedTime !== '--:--') {
-                const commInput = document.getElementById('comment-opened');
-                let commText = commInput ? commInput.value : '';
-                report += `${t.opened} ${openedTime} ${commText ? '[' + commText + ']' : ''}\n`;
-            }
-
+            const availableIds = ['opened', 'allOut'];
             if (boardingType === 'remote') {
-                ['busArr1', 'busArr2', 'busArr3'].forEach(id => {
-                    const time = document.getElementById(`time-${id}`).innerText;
-                    if (time !== '--:--') {
-                        const commInput = document.getElementById(`comment-${id}`);
-                        let commText = commInput ? commInput.value : '';
-                        report += `${getLabelText(id)} ${time} ${commText ? '[' + commText + ']' : ''}\n`;
-                    }
-                });
+                availableIds.push('busArr1', 'busArr2', 'busArr3');
+            }
+            for (let i = 1; i <= markCounterArr; i++) {
+                availableIds.push(`markArr_${i}`);
             }
 
-            for (let i = 1; i <= markCounterArr; i++) {
-                const id = `markArr_${i}`;
+            availableIds.forEach(id => {
                 const timeElem = document.getElementById(`time-${id}`);
                 if (timeElem && timeElem.innerText !== '--:--') {
                     const commInput = document.getElementById(`comment-${id}`);
-                    let commText = commInput ? commInput.value : '';
-                    report += `${t.mark} ${timeElem.innerText} ${commText ? '[' + commText + ']' : ''}\n`;
+                    const comment = commInput ? commInput.value.trim() : '';
+                    activeEvents.push({
+                        id: id,
+                        time: timeElem.innerText,
+                        timestamp: eventTimestamps[id] || 0,
+                        comment: comment,
+                        isCustomMark: id.startsWith('markArr_')
+                    });
                 }
-            }
+            });
 
-            const allOutTime = document.getElementById('time-allOut').innerText;
-            if (allOutTime !== '--:--') {
-                const commInput = document.getElementById('comment-allOut');
-                let commText = commInput ? commInput.value : '';
-                report += `${t.allOut} ${allOutTime} ${commText ? '[' + commText + ']' : ''}\n`;
-            }
+            // Сортировка по времени замера (timestamp)
+            activeEvents.sort((a, b) => a.timestamp - b.timestamp);
+
+            activeEvents.forEach(item => {
+                const commText = item.comment ? ` ${item.comment}` : '';
+                if (item.isCustomMark) {
+                    report += `${item.time}${commText}\n`;
+                } else {
+                    const label = getLabelText(item.id);
+                    report += `${label} ${item.time}${commText}\n`;
+                }
+            });
 
             const pax = document.getElementById('paxCount').value.trim();
             if (pax) {
