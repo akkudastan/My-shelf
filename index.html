@@ -667,6 +667,7 @@
         saveData();
     }
 
+    // ИСПРАВЛЕННАЯ ФУНКЦИЯ ОЧИСТКИ
     function clearAll() {
         const t = translations[currentLang];
         if (!confirm(t.confirmClear)) return;
@@ -680,8 +681,10 @@
         ids.forEach(id => {
             const display = document.getElementById(`time-${id}`);
             if (display) display.innerText = '--:--';
+            
             const btn = document.getElementById(`btn-${id}`);
             if (btn) btn.classList.remove('active');
+            
             const comm = document.getElementById(`comment-${id}`);
             if (comm) comm.value = '';
         });
@@ -765,7 +768,6 @@
                 }
             });
 
-            // Сортировка по времени замера (timestamp)
             activeEvents.sort((a, b) => a.timestamp - b.timestamp);
 
             activeEvents.forEach(item => {
@@ -782,7 +784,6 @@
             report += `${changes ? changes : t.noChanges}\n`;
 
         } else {
-            // Режим ПРИЛЕТ
             const availableIds = ['opened', 'allOut'];
             if (boardingType === 'remote') {
                 availableIds.push('busArr1', 'busArr2', 'busArr3');
@@ -806,7 +807,6 @@
                 }
             });
 
-            // Сортировка по времени замера (timestamp)
             activeEvents.sort((a, b) => a.timestamp - b.timestamp);
 
             activeEvents.forEach(item => {
@@ -847,7 +847,6 @@
         }, 1200);
     }
 
-    // Автоматическая загрузка данных при старте
     window.addEventListener('DOMContentLoaded', loadData);
 </script>
 
