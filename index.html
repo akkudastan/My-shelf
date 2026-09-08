@@ -197,8 +197,8 @@
 
 <script>
     let currentLang = 'ru';
-    let currentMode = 'departure'; // departure | arrival
-    let boardingType = 'gate'; // gate | remote
+    let currentMode = 'departure'; 
+    let boardingType = 'gate'; 
     let actionHistory = [];
     let redoHistory = [];
     let markCounterDep = 0;
@@ -226,7 +226,6 @@
             btnCopyReport: "Копировать весь отчет",
             reportCopied: "✅ Отчет скопирован!",
             phReport: "Здесь будет итоговый отчет...",
-            confirmClear: "Очистить все данные?",
             
             preboarding: "Пребординг",
             toBus: "В автобус",
@@ -264,7 +263,6 @@
             btnCopyReport: "Есепті толық көшіру",
             reportCopied: "✅ Есеп көшірілді!",
             phReport: "Мұнда итоговый есеп болады...",
-            confirmClear: "Барлық деректерді тазалау керек пе?",
             
             preboarding: "Алдын ала отырғызу",
             toBus: "Автобусқа",
@@ -302,7 +300,6 @@
             btnCopyReport: "Copy Full Report",
             reportCopied: "✅ Report Copied!",
             phReport: "Final report will appear here...",
-            confirmClear: "Clear All Data?",
             
             preboarding: "Preboarding",
             toBus: "To Bus",
@@ -369,11 +366,21 @@
             if (commElem) state.comments[id] = commElem.value;
         }
 
-        localStorage.setItem('flightLoggerState', JSON.stringify(state));
+        try {
+            localStorage.setItem('flightLoggerState', JSON.stringify(state));
+        } catch (e) {
+            console.warn("localStorage недоступен:", e);
+        }
     }
 
     function loadData() {
-        const saved = localStorage.getItem('flightLoggerState');
+        let saved = null;
+        try {
+            saved = localStorage.getItem('flightLoggerState');
+        } catch (e) {
+            console.warn("Не удалось прочитать localStorage:", e);
+        }
+
         if (!saved) {
             addMarkRow('departure');
             addMarkRow('arrival');
@@ -429,7 +436,7 @@
             setBoardingType(boardingType);
             setMode(currentMode);
         } catch (e) {
-            console.error("Ошибка загрузки данных из localStorage:", e);
+            console.error("Ошибка парсинга данных:", e);
         }
     }
 
@@ -470,7 +477,6 @@
 
         document.querySelectorAll('input[id^="comment-"]').forEach(inp => inp.placeholder = t.phComm);
 
-        // Статусы Посадки
         document.getElementById('btn-preboarding').innerText = (boardingType === 'remote') ? t.toBus : t.preboarding;
         document.getElementById('btn-full').innerText = t.full;
         document.getElementById('btn-busDep1').innerText = t.busDep1;
@@ -479,14 +485,12 @@
         document.getElementById('btn-allAboard').innerText = t.allAboard;
         document.getElementById('btn-closed').innerText = t.closed;
 
-        // Статусы Прилета
         document.getElementById('btn-opened').innerText = t.opened;
         document.getElementById('btn-busArr1').innerText = t.busArr1;
         document.getElementById('btn-busArr2').innerText = t.busArr2;
         document.getElementById('btn-busArr3').innerText = t.busArr3;
         document.getElementById('btn-allOut').innerText = t.allOut;
 
-        // Кнопки "Отметить"
         for (let i = 1; i <= markCounterDep; i++) {
             const btn = document.getElementById(`btn-markDep_${i}`);
             if (btn) btn.innerText = t.mark;
@@ -667,12 +671,13 @@
         saveData();
     }
 
-    // ИСПРАВЛЕННАЯ ФУНКЦИЯ ОЧИСТКИ
+    // ПРЯМАЯ ОЧИСТКА БЕЗ ВСПЛЫВАЮЩИХ ОКОН (РАБОТАЕТ В DOCUMENTS)
     function clearAll() {
-        const t = translations[currentLang];
-        if (!confirm(t.confirmClear)) return;
-        
-        localStorage.removeItem('flightLoggerState');
+        try {
+            localStorage.removeItem('flightLoggerState');
+        } catch (e) {
+            console.warn("localStorage недоступен:", e);
+        }
 
         const ids = [
             'preboarding', 'full', 'busDep1', 'busDep2', 'busDep3', 'allAboard', 'closed',
